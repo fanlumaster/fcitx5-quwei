@@ -65,12 +65,12 @@ public:
         : engine_(engine), ic_(ic), code_(std::stoi(code)) {
         setPageable(this);
         setCursorMovable(this);
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) { // generate indices of candidate window
             const char label[2] = {static_cast<char>('0' + (i + 1) % 10), '\0'};
             labels_[i].append(label);
             labels_[i].append(". ");
         }
-        generate();
+        generate(); // generate actually
     }
 
     const fcitx::Text &label(int idx) const override { return labels_[idx]; }
@@ -111,6 +111,7 @@ public:
     int cursorIndex() const override { return cursor_; }
 
 private:
+    // generate words corresponding to Quwei code
     void generate() {
         for (int i = 0; i < 10; i++) {
             auto code = code_ * 10 + (i + 1);
@@ -118,6 +119,7 @@ private:
             auto wei = code % 100;
 
             // Quwei to GB2312 (0xA0 + qu, 0xA0 + wei)
+            // convert Quwei to GB2312: 
             char in[3];
             if (qu >= 95) { /* Process extend Qu 95 and 96 */
                 in[0] = qu - 95 + 0xA8;
@@ -128,7 +130,7 @@ private:
                     in[1]++;
                 }
             } else {
-                in[0] = qu + 0xa0;
+                in[0] = qu + 0xa0; // +128 => inner code for machine
                 in[1] = wei + 0xa0;
             }
 
@@ -186,8 +188,9 @@ void QuweiState::keyEvent(fcitx::KeyEvent &event) {
         }
     }
 
-    if (buffer_.empty()) {
-        if (!event.key().isDigit()) {
+    
+    if (buffer_.empty()) { // current text buffer is empty
+        if (!event.key().isDigit()) { // current text is empty and not digit
             // if it gonna commit something
             auto c = fcitx::Key::keySymToUnicode(event.key().sym());
             if (!c) {
@@ -230,7 +233,7 @@ void QuweiState::keyEvent(fcitx::KeyEvent &event) {
             }
             return;
         }
-    } else {
+    } else { // current text buffer is not empty
         if (event.key().check(FcitxKey_BackSpace)) {
             buffer_.backspace();
             updateUI();
@@ -245,12 +248,14 @@ void QuweiState::keyEvent(fcitx::KeyEvent &event) {
             reset();
             return event.filterAndAccept();
         }
-        if (!event.key().isDigit()) {
+        if (!event.key().isDigit()) { // current text buffer is not empty, and current key pressed is not digit
             return event.filterAndAccept();
         }
     }
 
-    buffer_.type(event.key().sym());
+    // 1. current text buffer is empty and current key pressed is digit
+    // 2. current text buffer is not empty and current key pressed is digit
+    buffer_.type(event.key().sym()); // update buffer_, so when the fucking event itself is updated?
     updateUI();
     return event.filterAndAccept();
 }
@@ -269,9 +274,9 @@ void QuweiState::setCode(int code) {
 }
 
 void QuweiState::updateUI() {
-    auto &inputPanel = ic_->inputPanel();
+    auto &inputPanel = ic_->inputPanel(); // also need to track the initialization of ic_
     inputPanel.reset();
-    if (buffer_.size() == 3) {
+    if (buffer_.size() == 3) { // if already type 3 digits
         inputPanel.setCandidateList(std::make_unique<QuweiCandidateList>(
             engine_, ic_, buffer_.userInput()));
     }
@@ -320,7 +325,7 @@ void QuweiEngine::keyEvent(const fcitx::InputMethodEntry &entry,
     if (keyEvent.isRelease() || keyEvent.key().states()) {
         return;
     }
-    // FCITX_INFO() << keyEvent.key() << " isRelease=" << keyEvent.isRelease();
+    FCITX_INFO() << keyEvent.key() << " isRelease=" << keyEvent.isRelease();
     auto ic = keyEvent.inputContext();
     auto *state = ic->propertyFor(&factory_);
     state->keyEvent(keyEvent);
